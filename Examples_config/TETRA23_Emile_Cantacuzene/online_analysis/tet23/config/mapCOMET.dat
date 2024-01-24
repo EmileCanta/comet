@@ -1,9 +1,0 @@
-NbrOfCOMETCards 1
-NbrOfDetectors 5
-#reference Type Id group crate slot voie
-1	NTMP	0	0	0	4	0
-2	CEBR	0	0	0	4	1
-3	CATHODE	0	0	0	4	2
-4	BA1 0	0	0	4	3
-5	BA2	0	0	0	4	4
-

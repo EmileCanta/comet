@@ -1,0 +1,21 @@
+NbrOfCOMETCards 3
+NbrOfDetectors 18
+#reference Type Id group crate slot voie
+1	NTMP	1	0	0	1	0
+2	NTMP	2	0	0	1	1
+3	NTMP	3	0	0	1	2
+4	NTMP	4	0	0	1	3
+5	NTMP	5	0	0	1	4
+6	NTMP	6	0	0	1	5
+7	NTMP	7	0	0	2	0
+8	NTMP	8	0	0	2	1
+9	NTMP	9	0	0	2	2
+10	NTMP	10	0	0	2	3
+11	NTMP	11	0	0	2	4
+12	NTMP	12	0	0	2	5
+13	NTMP	13	0	0	3	0
+14	Beta	14	0	0	3	1
+15	Ge	15	0	0	3	2
+16	Ge	16	0	0	3	3
+17	Sili	17	0	0	3	4
+18	Beta	18	0	0	3	5

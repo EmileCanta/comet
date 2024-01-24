@@ -1,0 +1,176 @@
+//-------------------------------------------------------------------------//
+//                                                                         //
+//                         Convert_Narval_Main.cxx                         //
+//                               Version 1.8                               //
+//                       Matthieu Lebois November 2007                     //
+//                           with I. G. Georgiev                           //
+//         This program converts the Narval IN2p3 data files to Root.      //
+//                                                                         //
+//   The file liste should be :                                            //
+//  input.dat  <-file of definition of detectors                           //
+//  2nd line   <-directory where the in2p3 data files ares                 //
+//  3rd line   <-directory where you want the root files be                //
+//  ...        <-liste of the data files (one by line), ls is you friend:=)//
+//-------------------------------------------------------------------------//
+
+// Call of all the libraries used in this program
+#include "Convert.h"
+
+// Definition of the I/O function
+using namespace std;
+
+
+// Main part of the program
+int main()
+{
+  // Creation of a time counter
+  TStopwatch timer;
+   
+  // Declaration of the variable for the routine
+  int  n=0;
+  int it1;
+  int it2;
+  int it3;
+  TString inputfile;
+  TString outputfile;
+  TString paramfile;
+  TString listefile;
+  TString directoryin;
+  TString directoryout;
+TString Ttemp;
+  string buffer;
+  
+  TString ExperimentName = getenv("EXPERIMENT");
+  if(ExperimentName.Length()==0){
+    std::cout << "Enter ExperimentName : ";
+    std::cin >> ExperimentName;
+    std::cout << endl;
+  }
+  else std::cout << "Experiment Name: " << ExperimentName << std::endl;
+
+  // Definition of the name of file containing the run list
+  TString configdir;
+  configdir="/home/verney/online_analysis/";
+  TString listefilename ;
+  if(configdir.Length()>0){
+    std::ostringstream list;
+    list << configdir.Data() << ExperimentName.Data() << "/config/listConversion.dat";
+    listefilename = list.str().c_str();
+    std::cout << "List of files: " << listefilename << std::endl;
+  }
+  else{
+    std::cout << "Give the name with the complete path to the list of files to convert : ";
+    std::cin >> listefilename;
+    std::cout << std::endl;
+
+  }
+  
+  // Reading of the run list
+  ifstream liste(listefilename.Data(),ios::in) ;
+  if ( !liste.good())
+    {
+      cout << "Problem in " << listefile << endl ;
+      return 0 ; 
+    }
+
+  cout << endl;
+  cout << endl;
+  cout<<"####################################################" <<endl ; 
+  cout <<"#     Parameters for the convert : "<<endl <<"#"<<endl ; 
+
+  getline(liste,buffer); 
+  paramfile = buffer ; 
+  cout<<"# Will use parameter file : "<<paramfile.Data()<<endl ; 
+
+  getline(liste,buffer); 
+  directoryin = buffer ; 
+  cout <<"# The narval files are in : " << directoryin <<endl<<"#"<<endl ; 
+
+  getline(liste,buffer); 
+  directoryout = buffer ; 
+  cout<<"# The output files will be in : "<<directoryout <<endl <<"#"<<endl ; 
+  cout<<"####################################################" <<endl; 
+
+  while(!liste.eof())
+    {
+      // Chronometer to benchmark the conversion process
+      timer.Reset(); 
+      timer.Start();
+
+      // Reading of the file to convert
+      getline(liste, buffer);
+      if(buffer != "")
+	{
+	  inputfile = buffer.c_str() ; 
+	  if ( inputfile.Index("*") != -1) 
+	    {
+	      cout << "# Skiping the " << inputfile << endl ; 
+	      continue ; 
+	    }
+	  
+	  inputfile = buffer; 
+	  cout << "#" << endl;
+	  cout << "# Ready to process >> " << inputfile <<endl ; 
+	  
+	  // Generation of the complete outputfilename
+	  outputfile=directoryout;
+Coucou(1);
+	  it3 = inputfile.Index("_",1,inputfile.kExact);
+	  //it3 = inputfile.Index("_",1,inputfile.kExact);
+Coucou(2);	
+  outputfile += inputfile(0,it3); 
+
+Coucou(3);
+	  it1 = inputfile.Index("RUN",3,0,outputfile.kIgnoreCase);
+Coucou(4);
+	  if(it1 != -1)
+	    {
+Coucou(6);
+	      outputfile += "_";
+	      it2 = inputfile.Index(".",1,0,outputfile.kIgnoreCase);
+	      outputfile += inputfile(it1,it2-it1);
+	      }
+Coucou(7);
+	  outputfile+= ".root"; 
+	  
+	  // Generation of the complete datafile name
+Coucou(8);
+cout << directoryin.Data() << endl;
+cout << Ttemp << endl;
+	Ttemp.Clear();
+	  Ttemp = directoryin.Data() ;
+ cout << Ttemp << endl;
+Coucou(9);
+	  Ttemp += inputfile.Data() ; 
+Coucou(10);
+	  inputfile = Ttemp.Data() ; 
+	  
+	  cout<< "# Writing it in " << outputfile << endl <<"# "<<endl ; 
+	  
+	  // Call for conversion function
+	  // 1 parameter : name of the file containing all the parameters of the COMET Setup
+	  // 2 parameter : name of the NARVAL file
+	  // 3 parameter : name of the root file
+	  // 4 parameter : 1 -> coden used ; 0 -> coden not used (default)
+	  // 5 parameter : 1 -> swap enabled (default); 0 -> swap disabled 
+	  n = convertfile(paramfile.Data(),inputfile,outputfile.Data(),1,1);
+	  // Printing of chronometer measurement
+	  timer.Stop();
+	  Double_t rtime = timer.RealTime();
+	  Double_t ctime = timer.CpuTime();
+	  if(n == 1) cout << "# RealTime=" << rtime << " seconds, CpuTime="<< ctime << " seconds" <<endl;
+	  if(n == 0) cout << "Problem with the conversion: unable to read proprely the end of file" << endl;
+	  if(n == 2) cout << "Problem with the conversion: corrupted file (bad structure of event)" << endl;
+	  if(n == 3) cout << "Impossible to open the file" << endl;
+	  
+	}//End of if(buffer != "")
+    }
+
+  // Printing of the end of the program
+  cout << "Exiting program" << endl;
+  cout << endl;
+  cout << endl;
+
+  // End of the routine
+  return (0);
+}

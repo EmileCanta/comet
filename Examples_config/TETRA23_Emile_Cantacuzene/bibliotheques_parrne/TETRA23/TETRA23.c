@@ -1,0 +1,1282 @@
+#include "../includes/comet_var_.h"
+#include "../includes/comet_proto_.h"
+#include "../includes/lib_suti.h"
+#include "../includes/comvisu.h"
+#include "TETRA23_spectres.h"
+#include "TETRA23_topo.h"
+#include "../includes/compteurs.h"
+#include <time.h>
+
+extern MODE_RUN *modeRun;
+
+#define NTRANCHES 10
+#define NVOIES 12
+#define NCARTES 2
+int nbvoie = 6, num_tranche[NVOIES], rate[NTRANCHES][NVOIES], cpvoie;
+int flag_coden[NVOIES], compt[NTRANCHES][NVOIES];
+double somme[NTRANCHES][NVOIES], result[NTRANCHES][NVOIES];
+unsigned int ordre[NVOIES], ordre_prec[NVOIES], cpt[NTRANCHES][NVOIES];
+int cptov[NVOIES], nouv_tranche[NVOIES];
+double ntov, reste[NVOIES];
+
+/* par default un seul groupe */
+/* mis a 2 si on trouve un no de slot supplementaire */
+/* static int nbgroup = 1; */
+/* noslot0 et noslot1 : no de slot du premier groupe */
+/* noslot2 : no de slot du deuxieme groupe */
+static unsigned short int noslot0 = 1, noslot1 = 0;
+static unsigned short int noslot2 = 2, noslot3 = 3;
+static int nogroup0 = 0; 
+/*static int nogroup1 = 1;*/ 
+
+/* static int cptmulti = 0; */
+/* static int tmulti   = 0; */
+/* static int tmulti_tranche = 0; */
+/* static int nbmulti = 0; */
+
+unsigned long cpt0_32=0;
+unsigned long cpt1_32=0;
+unsigned long cpt2_32=0;
+unsigned long cpt3_32=0;
+unsigned long cpt4_32=0;
+unsigned long cpt5_32=0;
+unsigned long cpt0m_32=0;
+unsigned long cpt1m_32=0;
+unsigned long cpt2m_32=0;
+unsigned long cpt3m_32=0;
+unsigned long cpt4m_32=0;
+unsigned long cpt5m_32=0;
+
+void debrun_uti_acq_2g(void)
+{
+  int i, j, status;
+  char nomManip[80];
+
+  cptbizz = 0;
+  cptevttot = 0;
+  cptevtphys = 0;
+  cptevtphysd = 0;
+  cptevtphysm = 0;
+  cptcoden = 0;
+  cptevtTM = 0;
+  cptevtbiz = 0;
+  cptevtder = 0;
+  cptv0 = 0;
+  cptv1 = 0;  
+  cptv2 = 0;  
+  cptv3 = 0; 
+  cptv4 = 0;
+  cptv5 = 0;
+  cptv0M=0;
+  cptv1M=0;
+  cptv2M=0;
+  cptv3M=0;
+  cptv4M=0;
+  cptv5M=0;
+ 
+  /* Obtention du nom de l'experience */
+  status = getmanip_(nomManip);
+
+  /* Ouverture du fichier utrace.dat */
+  comet_init_utrace_("utrace.dat", &fd_utrace);
+
+  /* init du tableau des moyenne de temps mort par run */
+  for(i = 0 ; i < nbvoie ; i++){
+    FtpsOV[i] = 0.0;
+  }
+
+  /* ============================================================ */
+  /*	 		CONFIGURATION 				  */
+  /* Initialisation modes Multispectre et Classement-Coincidence  */
+  /* ============================================================ */
+  comet_initModeRun_();
+  status = comet_configManip_(nomManip);
+  if (status == -1) {
+    fprintf(stderr,"**** Pbe de configuration ****\n");
+    return;
+  }		
+
+  /* calcul du nombre de tov par tranche (1 tov tous les 512 ms) */
+  ntov = (modeRun->dureeTranche * 4.0) / (10000000.0 * 512);
+
+  /* Initialisation des compteurs de temps d'occupation */
+  cpvoie = 0;
+  for (j = 0; j < NVOIES ; j++) {
+    ordre[j] = 0;
+    ordre_prec[j] = 0;
+    num_tranche[j] = 0;
+    nouv_tranche[j] = 0;
+    flag_coden[j] = 0;
+    reste[j] = 0.0;
+    cptov[j] = 0;
+    for (i = 0; i < NTRANCHES ; i++) {
+      somme[i][j] = 0.0;
+      cpt[i][j]= 0;
+      rate[i][j] = 0;
+      result[i][j] = 0.0;
+      compt[i][j] = 0;
+    }
+  }
+  
+  comet_showModeRun_(stdout);
+  comet_showModeRun_(fd_utrace);	
+  
+  printf("*********************fin debrun_uti_acq_2g \n");
+} 
+
+/* ================================================ */
+/*  Bilan du traitement des evts simples et doubles  */
+/* ================================================ */	
+void finrun_uti_acq_2g(void)
+{
+  int i;
+
+  printf("*****************finrun_uti_acq \n");
+
+  /* Ecriture des resultats */
+  comet_showresult_(stdout);
+  comet_showresult_(fd_utrace);
+
+  fprintf(stdout,"\n **** Moyenne des TOV par voie sur le run ****\n");
+  for(i= 0; i< nbvoie; i++) { /* A METTRE APRES * OU NBVOIE APRES MODIF DU .H */
+    	fprintf(stdout," TOV voie %d\t\t\t= %.3f %%\n",i, 
+		(float)(FtpsOV[i]* (6.0 * NCARTES))/(float)cptevtTM);
+    	fprintf(fd_utrace," TOV voie %d\t\t\t= %.3f %%\n",i, 
+		(float)(FtpsOV[i]* (6.0 * NCARTES))/(float)cptevtTM);
+  }
+  
+  /* Fermeture du fichier utrace.dat */
+  fclose(fd_utrace);
+  comet_freeModeRun();
+}
+
+/* ================================ */
+/*  JFC - spectre direct simple     */
+/* ================================ */
+int traite_direct_simple(
+		  unsigned short int Qui,
+		  unsigned short int Energie,
+		  int slot,
+		  int voie, 
+		  int groupe,
+		  long spectre)
+{
+  int rc;
+  /* RAPPEL : les evenements directs craches par les cartes
+    ne connaissent pas la notion de groupe, mais seulement
+    le slot VXI de la carte. Il faut donc gerer ici l'identification
+    en fonction du groupe recu en argument. JFC - JUIN 2006
+  */
+  int local_slot0;
+  if (groupe == 0)
+    local_slot0 = noslot0;
+  else
+    local_slot0 = noslot2;
+  if((Qui == groupe*0x1000 + (noslot0+slot)*0x100 + voie) ||
+      (Qui == groupe*0x1000 + (noslot0+slot)*0x100 + voie + 0x10))
+    {
+      /*        printf("directs simples : slot %d voie %d Qui 0x%x\n",slot,voie,Qui); */
+      if(Energie > 32767)
+	{
+	  Energie = 32760;
+	}
+      rc = incsp_(&spectre, &Energie);
+      if (rc != 0)
+	printf("Erreur incsp_ sur spectre No %ld\n",spectre); 
+      return 1;
+    }
+  else
+    return 0;
+}
+
+/* ================================ */
+/*  JFC - spectre direct non marque */
+/* ================================ */
+int traite_direct_pas_marque(
+			      unsigned short int Qui,
+			      unsigned short int Energie,
+			      int slot,
+			      int voie, 
+			      int groupe,
+			      long spectre,
+			      long spectre_total)
+{
+  int rc;
+  /* RAPPEL : les evenements directs craches par les cartes
+     ne connaissent pas la notion de groupe, mais seulement
+     le slot VXI de la carte. Il faut donc gerer ici l'identification
+     en fonction du groupe recu en argument. JFC - JUIN 2006
+  */
+  int local_slot0;
+  if (groupe == 0)
+    local_slot0 = noslot0;
+  else
+    local_slot0 = noslot2;
+  
+  if(Qui == (local_slot0+slot)*0x100 + voie)
+    {
+      if(Energie > 32767)
+	{
+	  Energie = 32760;
+	}
+      rc = incsp_(&spectre, &Energie);
+      if (rc != 0)
+	printf("Erreur incsp_ sur spectre No %ld\n",spectre);
+
+      rc = incsp_(&spectre_total, &Energie);//fprintf(stdout, "non marqué");
+      if (rc != 0)
+	printf("Erreur incsp_ sur spectre No %ld\n",spectre_total);
+      return 1;
+    }
+  else
+    return 0;
+}
+
+/* =============================*/
+/*  JFC - spectre direct marque */
+/* ============================ */
+int traite_direct_marque(
+			 unsigned short int Qui,
+			 unsigned short int Energie,
+			 int slot,
+			 int voie,
+			 int groupe,
+			 long spectre,
+			 long spectre_total)
+{
+  int rc;
+  /* RAPPEL : les evenements directs craches par les cartes
+    ne connaissent pas la notion de groupe, mais seulement
+    le slot VXI de la carte. Il faut donc gerer ici l'identification
+    en fonction du groupe recu en argument. JFC - JUIN 2006
+  */
+  int local_slot0;
+  if (groupe == 0)
+    local_slot0 = noslot0;
+  else
+    local_slot0 = noslot2;
+
+   if(Qui == (local_slot0+slot)*0x100 + voie + 0x10)
+     {
+       if(Energie > 32767)
+	 {
+	   Energie = 32760;
+	 }
+       rc = incsp_(&spectre, &Energie);
+       if (rc != 0)
+	 printf("Erreur incsp_ sur spectre No %ld\n",spectre);
+
+       rc = incsp_(&spectre_total, &Energie);
+       if (rc != 0)
+	 printf("Erreur incsp_ sur spectre No %ld\n",spectre_total);
+       return 1;
+     }
+   else
+     return 0;
+}
+
+/* =================================*/
+/*  JFC - 1 temps non marque        */
+/* ================================ */
+int traite_direct_simple_temps(
+					  unsigned short int Qui,
+					  unsigned short int Tps_Moy,
+					  unsigned short int Tps_Faible,
+					  unsigned short int Tps_Fort,
+					  int slot,
+					  int voie, 
+					  int groupe,
+					  long spectre)
+{
+  int rc;
+  unsigned long long int canMax = 25000000000LL; /* = 10s; canMax = 500000ULL;  = 200us */
+  unsigned short Tps;
+  
+    if((Qui == groupe*0x1000 + (noslot0+slot)*0x100 + voie ) ||
+       (Qui == groupe*0x1000 + (noslot0+slot)*0x100 + voie + 0x10))
+    {
+      unsigned long long temps = TEMPS_47bitsBis(Tps_Fort,Tps_Moy,Tps_Faible);
+      temps = temps/1000000*2;                  /* COMPRESSION */
+      Tps = (unsigned short) temps;  
+      if (temps <= canMax/1000000*2)
+	{
+	  rc = incsp_(&spectre, &Tps);
+	  if (rc != 0)
+	    printf("Erreur incsp_ sur spectre No %ld\n",spectre);
+	  return 1;
+	}
+    }
+  return 0;
+}
+
+/* =================================*/
+/*  JFC - 1 temps non marque        */
+/* ================================ */
+int traite_direct_simple_temps_non_marque(
+					  unsigned short int Qui,
+					  unsigned short int Tps_Moy,
+					  unsigned short int Tps_Faible,
+					  unsigned short int Tps_Fort,
+					  int slot,
+					  int voie, 
+					  int groupe,
+					  long spectre)
+{
+  int rc;
+  unsigned long long int canMax = 500000ULL; /* = 200us */;
+  unsigned short Tps;
+  
+  /* RAPPEL : les evenements directs craches par les cartes
+     ne connaissent pas la notion de groupe, mais seulement
+     le slot VXI de la carte. Il faut donc gerer ici l'identification
+     en fonction du groupe recu en argument. JFC - JUIN 2006
+  */
+  int local_slot0;
+  if (groupe == 0)
+    local_slot0 = noslot0;
+  else
+    local_slot0 = noslot2;
+  
+  if(Qui == (local_slot0+slot)*0x100 + voie)
+    {
+      unsigned long long temps = TEMPS_47bitsBis(Tps_Fort,Tps_Moy,Tps_Faible);
+      temps = temps * 400 / 1000000 ;
+      temps = temps / 1000000	; // le temps/Tps est en secondes
+      Tps = (unsigned short) temps;
+      
+      if (Tps > 16384) 
+	{
+	  Tps = 16384;
+	}
+      rc = incsp_(&spectre, &Tps);
+    }
+  return 0;
+}
+
+int traite_coinc_bidim(
+		  unsigned short int Qui0,
+		  unsigned short int Qui1,
+		  unsigned short int *event,
+		  int slot0, 
+		  int voie0,
+		  int slot1, 
+		  int voie1,
+		  int groupe,
+		  long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int energie0,energie1;
+
+  /* element "declencheur" */
+   if((Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+      (Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10))
+     {	
+       /* element en coincidence */
+       if((Qui1 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1) ||
+	  (Qui1 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)) 
+	 {
+	   energie0 = event[EVT_D_ENER0];
+	   energie1 = event[EVT_D_ENER1];
+
+	   if (energie0 > 32767)
+	     energie0 = 32760;
+	   if (energie1 > 32767)
+	     energie1 = 32760;
+	   
+	   result = incsp2_(&spectre,&energie0,&energie1);
+	   if (result)
+	     printf("traite_coinc_bidim : erreur %d sur incrementation bidim %ld\n",result,spectre);
+	   vu = 1;
+	 }
+     }
+  else
+    vu = 0;
+
+  /* puis dans l'autre sens ... */
+  
+  /* element "declencheur" */
+   if((Qui1 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+      (Qui1 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10)) /* marque ou non marque */
+    {
+      /* element en coincidence */
+      if((Qui0 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1) ||
+	 (Qui0 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)) /* marque ou non marque*/
+	{
+
+	  energie0 = event[EVT_D_ENER0];
+	  energie1 = event[EVT_D_ENER1];
+
+	  if (energie0 > 32767)
+	    energie0 = 32760;
+	  if (energie0 > 32767)
+	    energie0 = 32760;
+          result = incsp2_(&spectre,&energie1,&energie0);
+	  if (result)
+	    printf("traite_coinc_bidim : erreur %d sur incrementation bidim %ld\n",result,spectre);
+	  vu = 1;
+	}
+    }
+  else
+    vu = 0;
+  return vu;
+}
+
+/***********************************/
+/* trait coinc conditionne total   */
+/* KNK - 30.05.2012                */
+/***********************************/
+int traite_coinc_condition(
+			   unsigned short int Qui0,
+			   unsigned short int Qui1,
+			   unsigned short int *event,
+			   int slot0, 
+			   int voie0,
+			   int groupe0,
+			   int slot1, 
+			   int voie1,
+			   int groupe1,
+			   long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int Energie;
+
+
+  /* element "declencheur"  */
+  if((Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 )
+     || (Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10 ))
+    {   
+      /* element en coincidence dont on garde l'energie */
+      if((Qui1 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1)
+     || (Qui1 == groupe1*0x1000 + (noslot0+slot0)*0x100 + voie1 + 0x10 ))
+      { 
+          Energie = event[EVT_D_ENER1];
+          
+          if (Energie > 32767)
+            Energie = 32760;
+          
+          result = incsp_(&spectre,&Energie);
+          if (result != 0)
+            printf("traite_coinc_ge_condition : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }  
+    }
+  else
+    vu = 0;
+
+  /* puis dans l'autre sens ... */
+  
+  /* element en coincidence est arrive avant l'element delencheur */
+  if((Qui1 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 )
+     || (Qui1 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10 ))
+    {
+      /* element declencheur */
+      if((Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1)
+	 || Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)
+        {
+          Energie = event[EVT_D_ENER0];
+          if (Energie > 32767)
+            Energie = 32760;
+          result = incsp_(&spectre,&Energie);
+          if (result !=0)
+            printf("traite_coinc_ge_condition_Beta : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }
+    }
+  else
+    vu = 0;
+  return vu;
+}
+
+/***********************************/
+/* trait coinc conditionne nm      */
+/* KNK - 30.05.2012                */
+/***********************************/
+int traite_coinc_condition_non_marque(
+				      unsigned short int Qui0,
+				      unsigned short int Qui1,
+				      unsigned short int *event,
+				      int slot0, 
+				      int voie0,
+				      int groupe0,
+				      int slot1, 
+				      int voie1,
+				      int groupe1,
+				      long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int Energie;
+  
+  /* QUI0 est declencheur marque ou non */
+
+  /* element "declencheur" */
+  if((Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 )
+     || (Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10 ))
+    {   
+      /* QUI1 element en coincidence non marque exclusivement , je garde son energie*/
+      if(Qui1 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1)
+      { 
+          Energie = event[EVT_D_ENER1];
+          
+          if (Energie > 32767)
+            Energie = 32760;
+          
+          result = incsp_(&spectre,&Energie);
+          if (result != 0)
+            printf("traite_coinc_ge_condition : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }  
+    }
+  else
+    vu = 0;
+
+  /* puis dans l'autre sens ... */
+  
+  /* element en coinc, non marque, je garde son energie*/
+  if(Qui1 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0)
+    {
+      /* element declencheur marque ou non*/
+      if((Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1)
+	 || Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)
+        {
+          Energie = event[EVT_D_ENER0];
+          if (Energie > 32767)
+            Energie = 32760;
+/*        printf("sp %ld Energie %d\n", spectre, Energie); */
+          result = incsp_(&spectre,&Energie);
+          if (result !=0)
+            printf("traite_coinc_ge_condition_Beta : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }
+    }
+  else
+    vu = 0;
+  return vu;
+}
+
+/***********************************/
+/* trait coinc conditionne marque  */
+/* KNK - 30.05.2012                */
+/***********************************/
+int traite_coinc_condition_marque(
+				  unsigned short int Qui0,
+				  unsigned short int Qui1,
+				  unsigned short int *event,
+				  int slot0, 
+				  int voie0,
+				  int groupe0,
+				  int slot1, 
+				  int voie1,
+				  int groupe1,
+				  long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int Energie;
+  
+  /* 
+     QUI0 est declencheur marque ou non
+  */
+
+  /* element "declencheur" */
+  if((Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 )
+     || (Qui0 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10 ))
+    {   
+      /* element en coincidence marque, je garde son energie */
+
+      if(Qui1 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)
+      { 
+          Energie = event[EVT_D_ENER1];
+          
+          if (Energie > 32767)
+            Energie = 32760;
+          
+          result = incsp_(&spectre,&Energie);
+          if (result != 0)
+            printf("traite_coinc_ge_condition : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }  
+    }
+  else
+    vu = 0;
+
+  /* puis dans l'autre sens ... */
+  
+  /* element en coincidence arrive avant, je garde son energie, il doit etre marque*/
+  if(Qui1 == groupe0*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10)
+    {
+      /* element declencheur QUI0 arrive apres, marque ou non */
+      if((Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1)
+	 || Qui0 == groupe1*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)
+        {
+          Energie = event[EVT_D_ENER0];
+          if (Energie > 32767)
+            Energie = 32760;
+/*        printf("sp %ld Energie %d\n", spectre, Energie); */
+          result = incsp_(&spectre,&Energie);
+          if (result !=0)
+            printf("traite_coinc_ge_condition_Beta : erreur %d sur incrementation spectre %ld\n",result,spectre);
+
+          vu = 1;
+        }
+    }
+  else
+    vu = 0;
+  return vu;
+}
+
+/* ============================ */
+/* KNK : traite_coinc_temps     */
+/* Dans un seul sens uniquement */
+/* pour BEDO2012                */
+/* ============================ */
+int traite_coinc_temps(
+                  unsigned short int Qui0,
+                  unsigned short int Qui1,
+                  unsigned short int *event,
+                  int slot0, 
+                  int voie0,
+                  int slot1, 
+                  int voie1,
+                  int groupe,
+                  long spectre)
+{
+  int rc, vu;
+
+  double delta_;
+  unsigned short int delta = 0;
+  double alea = 1.*rand()/RAND_MAX;
+
+  /* element "declencheur" */
+  if((Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+     (Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10))
+    {   
+      /* element en coincidence */
+      if((Qui1 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1) ||
+         (Qui1 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10)) 
+        { 
+          delta_ = deltaT1 + 16384 + alea ; /* Compression pour ramener de double (64 bits)
+                                                 a 16 bits puis centrage 
+                                                 pour que le 0 soit au centre du spectre */
+          delta = (unsigned short int) delta_;
+	  if (delta > 32767)
+            delta = 32760;
+          rc = incsp_(&spectre,&delta);
+          if (rc!=0)
+            printf("traite_coinc_temps : erreur %d sur incrementation spectre No : %ld\n",rc,spectre);
+          vu = 1;
+        }  
+    }
+  else
+    vu = 0;
+
+  /* puis dans l'autre sens ... */
+  /* element "declencheur" */
+  if((Qui1 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+     (Qui1 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10))
+    {
+      /* element en coincidence */
+      if((Qui0 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1) ||
+         (Qui0 == groupe*0x1000 + (noslot0+slot1)*0x100 + voie1 + 0x10))
+        {
+          delta_ = deltaT2 + 16384 + alea ; /* Compression pour ramener de double (64 bits)
+                                                 a 16 bits puis centrage
+                                                pour que le 0 soit au centre du spectre */
+          delta = (unsigned short int) delta_;
+	  if (delta > 32767)
+            delta = 32760;
+          rc = incsp_(&spectre,&delta);
+          if (rc!=0)
+            printf("traite_coinc_temps : erreur %d sur incrementation spectre No : %ld\n",rc,spectre);
+          vu = 1;
+        }
+    }
+  else
+    vu = 0;
+
+  return vu;
+}
+
+/* ================================== */
+/* traite_coinc_bidim_diff_temps. KNK */
+/* 04.03.2010                         */
+/* ================================== */
+int traite_coinc_bidim_diff_temps(
+		  unsigned short int Qui0,
+		  unsigned short int Tps_Moy,
+		  unsigned short int Tps_Faible,
+		  unsigned short int Tps_Fort,
+		  unsigned short int *event,
+		  int slot0, 
+		  int voie0,
+		  int groupe,
+		  long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int energie0;
+  unsigned long long int tpsComet, canMax = 25000000000LL; /* = 10s */;
+  unsigned short Tps;
+
+  if((Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+     (Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10))
+    {	
+      energie0 = event[EVT_D_ENER0];
+      tpsComet = TEMPS_47bitsBis(Tps_Fort,Tps_Moy,Tps_Faible);
+      while (tpsComet >= canMax)
+	{
+	  tpsComet -= canMax;
+	}
+      tpsComet /= 1000000LL;	/* compression */
+      Tps = (unsigned short) (tpsComet);
+      
+      if (energie0 > 32767)
+	energie0 = 32760;
+
+      result = incsp2_(&spectre,&energie0,&Tps);
+      if (result)
+	printf("traite_coinc_bidim : erreur %d sur incrementation bidim %ld\n",result,spectre);
+      vu = 1;
+    }
+  else
+    vu = 0;
+
+  return vu;
+}
+int traite_coinc_bidim_diff_temps2(
+		  unsigned short int Qui0,
+		  unsigned short int Qui1,
+		  unsigned short int Tps_Moy,
+		  unsigned short int Tps_Faible,
+		  unsigned short int Tps_Fort,
+		  unsigned short int *event,
+		  int slot0, 
+		  int voie0,
+		  int slot1, 
+		  int voie1,
+		  int groupe,
+		  long spectre)
+{
+  int vu;
+  unsigned short result;
+  unsigned short int energie1;
+  unsigned long long int tpsComet, canMax = 25000000000LL; /* = 10s */;
+  unsigned short Tps;
+
+  if((Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0) ||
+     (Qui0 == groupe*0x1000 + (noslot0+slot0)*0x100 + voie0 + 0x10))
+    {	
+      energie1 = event[EVT_D_ENER1];
+      tpsComet = TEMPS_47bitsBis(Tps_Fort,Tps_Moy,Tps_Faible);
+      while (tpsComet >= canMax)
+	{
+	  tpsComet -= canMax;
+	}
+      tpsComet /= 1000000LL;	/* compression */
+      Tps = (unsigned short) (tpsComet);
+      
+      if (energie1 > 32767)
+	energie1 = 32760;
+
+      result = incsp2_(&spectre,&energie1,&Tps);
+      if (result)
+	printf("traite_coinc_bidim_diff_temps2 : erreur %d sur incrementation bidim %ld\n",result,spectre);
+      vu = 1;
+    }
+  else
+    vu = 0;
+
+  return vu;
+}
+/* ======================================== */
+/*  Traitement des evts simples et doubles  */
+/* ======================================== */
+/*	
+extern double longueur_onde_temp;
+extern double longueur_onde;
+extern long numdeb_laser0;
+extern long numdeb_laser12;
+*/
+void utrait_uti_acq_2g(
+		       unsigned short int *event,
+		       int *lenevent)
+{
+  int coinc, coinc1, coinc2, coinc3, coinc4, coinc5, coinc6, coinc7, coinc_bidim;
+  int direct, direct_m, direct_nm;
+
+  unsigned short int code_topo;
+  /*  unsigned short int calcul;
+      unsigned short result; */ 
+
+  switch(*lenevent) {
+      
+    /* ==================================================================== */
+    /*  			Traitement des Evts doubles    			*/
+    /* ==================================================================== */
+  case EVTS_DOUBLES_ACQ : 
+    /*printf("evt doubles\n");*/
+    
+    /* ===== Analyse de l'evenement double ====== */
+
+     /* Obtention du numero de voie + numero de slot */
+     code_voie[0] =  event[EVT_D_DESC0] & 0xff1f; /* numero voie du 1er Evt */
+     code_voie[1] =  event[EVT_D_DESC1] & 0xff1f; /* idem du 2eme Evt */
+     
+     /* Reconstitution du temps sur 47 bits */
+     temps[0] = TEMPS_47bits(event[EVT_D_TPSF1], event[EVT_D_TPSM1],
+                                event[EVT_D_TPSf1]);
+     temps[1] = TEMPS_47bits(event[EVT_D_TPSF0], event[EVT_D_TPSM0],
+                                event[EVT_D_TPSf0]);
+
+     /* Calcul de la difference de temps entre 2 voies en coincidence */
+     deltaT1 = temps[0] - temps[1];
+     deltaT2 = temps[1] - temps[0];
+    
+     /* ===== Identification de la coincidence ===== */
+
+     coinc = 0;
+     coinc1 = 0;
+     coinc2 = 0;
+     coinc3 = 0;
+     coinc4 = 0;
+     coinc5 = 0;
+     coinc6 = 0;
+     coinc7 = 0;
+     coinc_bidim = 0;
+		 
+		 /* ============================================ */
+        							/* DIFFTEMPS */
+     /* ============================================ */
+   
+     if(!coinc){
+       coinc = traite_coinc_temps(
+				  code_voie[0],
+				  code_voie[1],
+				  event,
+				  R11_slot,
+				  R11_voie,
+				  Beta_slot,
+				  Beta_voie,
+				  nogroup0,
+				  R11Beta);
+     }
+
+		if(!coinc){
+       coinc = traite_coinc_temps(
+				  code_voie[0],
+				  code_voie[1],
+				  event,
+				  Ge_slot,
+				  Ge_voie,
+				  Beta_slot,
+				  Beta_voie,
+				  nogroup0,
+				  GeBeta);
+		 }
+
+		if(!coinc){
+       coinc = traite_coinc_temps(
+				  code_voie[0],
+				  code_voie[1],
+				  event,
+				  GeCO_slot,
+				  GeCO_voie,
+				  BetaCO_slot,
+				  BetaCO_voie,
+				  nogroup0,
+				  GeBetCO);
+		 }
+
+		if(!coinc){
+       coinc = traite_coinc_temps(
+				  code_voie[0],
+				  code_voie[1],
+				  event,
+				  GeCO_slot,
+				  GeCO_voie,
+				  Sili_slot,
+				  Sili_voie,
+				  nogroup0,
+				  GeSili);
+		 }
+
+
+     /* ============================================ */
+     									/* CONDITION */
+     /* ============================================ */
+
+     if(!coinc)
+       coinc = traite_coinc_condition(
+				      code_voie[0],
+				      code_voie[1],
+				      event,
+				      Beta_slot,
+				      Beta_voie,
+				      nogroup0,
+				      Ge_slot,
+				      Ge_voie,
+				      nogroup0,
+				      GecBeta);
+
+		 if(!coinc)
+			 coinc = traite_coinc_condition(
+				      code_voie[0],
+				      code_voie[1],
+				      event,
+				      R11_slot,
+				      R11_voie,
+				      nogroup0,
+				      Ge_slot,
+				      Ge_voie,
+				      nogroup0,
+				      GecR11);
+
+		 if(!coinc)
+			 coinc = traite_coinc_condition(
+				      code_voie[0],
+				      code_voie[1],
+				      event,
+				      GeCO_slot,
+				      GeCO_voie,
+				      nogroup0,
+				      Sili_slot,
+				      Sili_voie,
+				      nogroup0,
+				      GecSili);
+
+		 if(!coinc)
+			 coinc = traite_coinc_condition(
+				      code_voie[0],
+				      code_voie[1],
+				      event,
+				      GeCO_slot,
+				      GeCO_voie,
+				      nogroup0,
+				      BetaCO_slot,
+				      BetaCO_voie,
+				      nogroup0,
+				      GecBeCO);
+
+     return;
+     break; /* fin du *lenevent == 12 */
+
+     /* ==================================================================== */
+     /*  			Traitement des Evts simples   		     */
+     /* ==================================================================== */
+  case EVTS_SIMPLES_ACQ: 
+    /* if( flagevt == 0)
+      {
+	printf("\n evt simples  noslot0 =%d event[EVT_S_DESC]=%d",noslot0,event[EVT_S_DESC]);
+	flagevt = 1;
+	}*/
+
+   direct = 0;   
+   direct_m = 0;
+   direct_nm = 0;
+
+   /* Bit de Service + Bit de marquage + No voie */
+   code_voie[0] =  event[EVT_S_DESC] & 0x3f;
+   /* No groupe =0 + no de slot + no de chassis =0 */
+   code_topo = (event[EVT_S_DESC] & 0xffc0) >> 6;
+
+   /* Detection du dernier Evt general du Chassis (No de chassis a inclure) */
+   if(event[EVT_S_DESC] == DESC_LASTEVENT) 
+     {
+       fprintf(stdout, "\n==== YOUPPIE, j'ai vu le dernier evt\n\n");
+     }
+
+   if (code_voie[0] <= VOIE_PHYS5)
+     cptevtphys = cptevtphys + 1;     /* Voies Physiques non marquees */
+
+   if ((code_voie[0] >= VOIE_PHYSM0) && (code_voie[0] <= VOIE_PHYSM5) )
+       cptevtphysm = cptevtphysm + 1;   /* Voies Physiques Marquees */
+
+   if (code_voie[0] == CODEN)
+     {
+	      cptcoden = cptcoden + 1;   /* CodEn */
+     }
+
+   /* Rejet eventuel sur No de voie */
+   if (code_voie[0] > 0x2f)
+     {
+       fprintf(stderr, "Warning! Etrange No de code_voie[0] = %d, 0x%04x\n", 
+	       code_voie[0], code_voie[0]);
+       return;
+     }
+   
+   /* =========================================	*/
+   /*  Spectre de temps mort     		*/
+   /*  code donnee : 0x20 a 0x25 		*/
+   /* ========================================= */
+
+   /* code_voie = slot + service + marquage + voie */
+   code_voie[0] =  event[EVT_S_DESC] & 0xf3f;
+  
+   if ((code_voie[0] >= (noslot0*0x100 + 0x20)) &&
+       (code_voie[0] <=(noslot0*0x100 + 0x25)))
+     comet_TM_(event, TM,0);
+   
+   if ((code_voie[0] >= (noslot1*0x100 + 0x20)) &&
+       (code_voie[0] <=(noslot1*0x100 + 0x25)))
+     comet_TM_(event, TM,6);
+
+   if ((code_voie[0] >= (noslot2*0x100 + 0x20)) &&
+       (code_voie[0] <=(noslot2*0x100 + 0x25)))
+     comet_TM_(event, TM,12);
+
+   /* ========================= */
+   /*			Spectres directs      */
+   /* ========================= */
+
+	 /* Energie */
+
+   if (!direct)
+     direct = traite_direct_simple(
+				   code_voie[0],
+				   event[EVT_S_ENER],
+				   Ge_slot,
+				   Ge_voie,
+				   Ge_grp,
+				   Ge);
+
+   if (!direct)
+     direct = traite_direct_simple(
+				   code_voie[0],
+				   event[EVT_S_ENER],
+				   GeCO_slot,
+				   GeCO_voie,
+				   GeCO_grp,
+				   GeCO);
+
+   if (!direct)
+     direct = traite_direct_simple(
+				   code_voie[0],
+				   event[EVT_S_ENER],
+				   Sili_slot,
+				   Sili_voie,
+				   Sili_grp,
+				   Sili);
+
+   /* Temps */
+
+   traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      Beta_slot,
+			      Beta_voie,
+			      nogroup0,
+			      BetaT);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      Ge_slot,
+			      Ge_voie,
+			      nogroup0,
+			      GeT);   
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R11_slot,
+			      R11_voie,
+			      nogroup0,
+			      R11);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R12_slot,
+			      R12_voie,
+			      nogroup0,
+			      R12);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R21_slot,
+			      R21_voie,
+			      nogroup0,
+			      R21);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R22_slot,
+			      R22_voie,
+			      nogroup0,
+			      R22);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R23_slot,
+			      R23_voie,
+			      nogroup0,
+			      R23);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R31_slot,
+			      R31_voie,
+			      nogroup0,
+			      R31);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R32_slot,
+			      R32_voie,
+			      nogroup0,
+			      R32);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R33_slot,
+			      R33_voie,
+			      nogroup0,
+			      R33);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R41_slot,
+			      R41_voie,
+			      nogroup0,
+			      R41);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R42_slot,
+			      R42_voie,
+			      nogroup0,
+			      R42);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R43_slot,
+			      R43_voie,
+			      nogroup0,
+			      R43);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      R44_slot,
+			      R44_voie,
+			      nogroup0,
+			      R44);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      RTOT_slot,
+			      RTOT_voie,
+			      nogroup0,
+			      RTOT);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      Beta_slot,
+			      Beta_voie,
+			      nogroup0,
+			      BetaT);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      GeCO_slot,
+			      GeCO_voie,
+			      nogroup0,
+			      GeCOT);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      Sili_slot,
+			      Sili_voie,
+			      nogroup0,
+			      SiliT);
+
+	 traite_direct_simple_temps(
+			      code_voie[0],
+			      event[EVT_S_TPSM],
+			      event[EVT_S_TPSf],
+			      event[EVT_S_TPSF],
+			      BetaCO_slot,
+			      BetaCO_voie,
+			      nogroup0,
+			      BetaCOT);
+
+
+   break; /* fin evt simple */
+
+  case EVT_NOSLOT_ACQ: /* premier evt compose de 5mots de 16 bits contenant les no de slot
+			  et les no de groupe s'il y en a */
+    code_voie[0] =  event[EVT_S_DESC] & 0xffff;
+
+    /* noslot3 = 7; */  /* triche pour eviter 2eme groupe - jfc */
+    printf("noslot0 = 0x%x noslot1 = 0x%x noslot2 = 0x%x noslot3 = 0x%x\n",
+	   noslot0,noslot1,noslot2,noslot3);
+
+    break;
+    
+  default:
+    /* Rejet eventuel sur longueur de l'evenement */
+    fprintf(stderr, "ERREUR !! lenevent = %d\n",*lenevent);  
+   
+    return;
+    break;
+
+  } /* fin switch */
+
+  return;
+}

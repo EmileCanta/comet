@@ -1,0 +1,44 @@
+#ifndef _SPECTRES_H_
+#define _SPECTRES_H_
+
+/* === Temps mort === */
+static int	TM	 =1;
+
+/* === ENERGIE === */
+static int	Ge	 =2;
+static int	GeCO	 =3;
+static int	Sili	 =4;
+
+/* === TEMPS === */
+static int BetaT =5;
+static int GeT =6;
+static int	R11	 =7;
+static int	R12	 =8;
+static int	R21	 =9;
+static int	R22	 =10;
+static int	R23	 =11;
+static int	R31	 =12;
+static int	R32	 =13;
+static int	R33	 =14;
+static int	R41	 =15;
+static int	R42	 =16;
+static int	R43	 =17;
+static int	R44	 =18;
+static int	RTOT	 =19;
+static int	GeCOT	 =20;
+static int	SiliT	 =21;
+static int	BetaCOT	 =22;
+
+/* === Conditions === */
+static int GecBeta =23;
+static int GecR11 =24;
+static int GecSili =25;
+static int GecBetCO =26;
+
+/* === Diff Temps === */
+static int	R11Beta	 =27;
+static int	GeBeta	 =28;
+static int	GeBetaCO	 =29;
+static int	GeSili	 =30;
+
+#endif

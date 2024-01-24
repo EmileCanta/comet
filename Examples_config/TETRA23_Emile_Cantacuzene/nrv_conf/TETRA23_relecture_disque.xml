@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <producer>
+    <name>emetteur</name>
+    <hostname>ipntdmp5</hostname>
+    <binary_code>producteur_disque_in2p3</binary_code>
+    <output_buffer_name>data_parrne</output_buffer_name>
+    <size output_buffer="data_parrne">530000</size>
+    <port output_buffer="data_parrne">eth0</port>
+    <debug>false</debug>
+  </producer> 
+  <consumer>
+    <name>recepteur</name>
+    <hostname>localhost</hostname>
+    <binary_code>consommateur_cvisu</binary_code>
+    <data_source source_port="eth0" source_buffer="data_parrne">emetteur</data_source>
+    <argument><![CDATA[bibliotheque /home/verney/bibliotheques_parrne/TETRA23.so]]></argument>
+    <debug>true</debug>
+  </consumer>
+</configuration>

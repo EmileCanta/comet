@@ -1,0 +1,40 @@
+<configuration name="tet23_avec_disque">
+  <producer output_buffers="1">
+    <name>emetteur</name>
+    <hostname>crate1</hostname>
+    <binary_code>producteur_parrne</binary_code>
+    <output_buffer_name>data_parrne</output_buffer_name>
+    <size output_buffer="data_parrne">530000</size>
+    <port output_buffer="data_parrne">eth0</port>
+    <debug>false</debug>
+  </producer>
+  <intermediary input_buffers="1" output_buffers="2">
+    <name>distributeur</name>
+    <hostname>ipntdmp5</hostname>
+    <binary_code>intermediaire_distributeur</binary_code>
+    <data_source source_port="eth0" source_buffer="data_parrne">emetteur</data_source>
+    <output_buffer_name>data_sortie1</output_buffer_name>
+    <size output_buffer="data_sortie1">530000</size>
+    <port output_buffer="data_sortie1">eth0</port>
+    <output_buffer_name>data_sortie2</output_buffer_name>
+    <size output_buffer="data_sortie2">530000</size>
+    <port output_buffer="data_sortie2">eth0</port>
+    <debug>true</debug>
+  </intermediary>  
+  <consumer input_buffers="1">
+    <name>recepteur1</name>
+    <hostname>ipntdmp5</hostname>
+    <binary_code>consommateur_disque_in2p3</binary_code>
+    <data_source source_port="eth0" source_buffer="data_sortie1">distributeur</data_source>
+    <argument><![CDATA[repertoire /data/verney/tet23]]></argument>
+    <debug>true</debug>
+  </consumer>
+  <consumer>
+    <name>recepteur2</name>
+    <hostname>localhost</hostname>
+    <binary_code>consommateur_cvisu</binary_code>
+    <data_source source_port="eth0" source_buffer="data_sortie2">distributeur</data_source>
+    <argument><![CDATA[bibliotheque /home/verney/bibliotheques_parrne/tet23.so]]></argument>
+    <debug>true</debug>
+  </consumer>
+</configuration>

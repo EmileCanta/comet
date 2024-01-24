@@ -1,0 +1,50 @@
+
+# DO NOT DELETE
+
+./RootToAscii_C.so: /home/orgam/root/include/TFile.h
+./RootToAscii_C.so: /home/orgam/root/include/TDirectoryFile.h
+./RootToAscii_C.so: /home/orgam/root/include/TDirectory.h
+./RootToAscii_C.so: /home/orgam/root/include/TNamed.h
+./RootToAscii_C.so: /home/orgam/root/include/TObject.h
+./RootToAscii_C.so: /home/orgam/root/include/Rtypes.h
+./RootToAscii_C.so: /home/orgam/root/include/RConfig.h
+./RootToAscii_C.so: /home/orgam/root/include/RVersion.h
+./RootToAscii_C.so: /home/orgam/root/include/DllImport.h
+./RootToAscii_C.so: /home/orgam/root/include/Rtypeinfo.h
+./RootToAscii_C.so: /home/orgam/root/include/snprintf.h
+./RootToAscii_C.so: /home/orgam/root/include/strlcpy.h
+./RootToAscii_C.so: /home/orgam/root/include/TGenericClassInfo.h
+./RootToAscii_C.so: /home/orgam/root/include/TSchemaHelper.h
+./RootToAscii_C.so: /home/orgam/root/include/TStorage.h
+./RootToAscii_C.so: /home/orgam/root/include/TVersionCheck.h
+./RootToAscii_C.so: /home/orgam/root/include/Riosfwd.h
+./RootToAscii_C.so: /home/orgam/root/include/TBuffer.h
+./RootToAscii_C.so: /home/orgam/root/include/TString.h
+./RootToAscii_C.so: /home/orgam/root/include/TMathBase.h
+./RootToAscii_C.so: /home/orgam/root/include/TList.h
+./RootToAscii_C.so: /home/orgam/root/include/TSeqCollection.h
+./RootToAscii_C.so: /home/orgam/root/include/TCollection.h
+./RootToAscii_C.so: /home/orgam/root/include/TIterator.h
+./RootToAscii_C.so: /home/orgam/root/include/TDatime.h
+./RootToAscii_C.so: /home/orgam/root/include/TUUID.h
+./RootToAscii_C.so: /home/orgam/root/include/TMap.h
+./RootToAscii_C.so: /home/orgam/root/include/THashTable.h
+./RootToAscii_C.so: /home/orgam/root/include/TUrl.h
+./RootToAscii_C.so: /home/orgam/root/include/TH1.h
+./RootToAscii_C.so: /home/orgam/root/include/TAxis.h
+./RootToAscii_C.so: /home/orgam/root/include/TAttAxis.h
+./RootToAscii_C.so: /home/orgam/root/include/TArrayD.h
+./RootToAscii_C.so: /home/orgam/root/include/TArray.h
+./RootToAscii_C.so: /home/orgam/root/include/TAttLine.h
+./RootToAscii_C.so: /home/orgam/root/include/TAttFill.h
+./RootToAscii_C.so: /home/orgam/root/include/TAttMarker.h
+./RootToAscii_C.so: /home/orgam/root/include/TArrayC.h
+./RootToAscii_C.so: /home/orgam/root/include/TArrayS.h
+./RootToAscii_C.so: /home/orgam/root/include/TArrayI.h
+./RootToAscii_C.so: /home/orgam/root/include/TArrayF.h
+./RootToAscii_C.so: /home/orgam/root/include/Foption.h
+./RootToAscii_C.so: /home/orgam/root/include/TVectorFfwd.h
+./RootToAscii_C.so: /home/orgam/root/include/TVectorDfwd.h
+./RootToAscii_C.so: /home/orgam/root/include/TFitResultPtr.h
+./RootToAscii_C.so: /home/orgam/root/include/cintdictversion.h /home/orgam/root/include/RVersion.h
+RootToAscii_C__ROOTBUILDVERSION= 5.34/13
